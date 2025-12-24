@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/service_item.dart';
+import '../models/book.dart';
 import '../models/reservation.dart';
 
 class BookingScreen extends StatefulWidget {
@@ -11,10 +11,9 @@ class BookingScreen extends StatefulWidget {
 
 class _BookingScreenState extends State<BookingScreen> {
   final _formKey = GlobalKey<FormState>();
-  DateTime _selectedDate = DateTime.now().add(const Duration(days: 1));
-  TimeOfDay _selectedTime = const TimeOfDay(hour: 12, minute: 0);
+  DateTime _pickupDate = DateTime.now();
+  DateTime _returnDate = DateTime.now().add(const Duration(days: 7));
   final TextEditingController _nameController = TextEditingController();
-  int _guests = 1;
 
   @override
   void dispose() {
@@ -22,42 +21,42 @@ class _BookingScreenState extends State<BookingScreen> {
     super.dispose();
   }
 
-  Future<void> _selectDate(BuildContext context) async {
+  Future<void> _selectDate(BuildContext context, bool isPickup) async {
+    final initialDate = isPickup ? _pickupDate : _returnDate;
+    final firstDate = isPickup ? DateTime.now() : _pickupDate;
+    
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime.now(),
-      lastDate: DateTime(2101),
+      initialDate: initialDate,
+      firstDate: firstDate,
+      lastDate: DateTime.now().add(const Duration(days: 365)),
     );
-    if (picked != null && picked != _selectedDate) {
+    
+    if (picked != null) {
       setState(() {
-        _selectedDate = picked;
+        if (isPickup) {
+          _pickupDate = picked;
+          // Ensure return date is after pickup
+          if (_returnDate.isBefore(_pickupDate)) {
+            _returnDate = _pickupDate.add(const Duration(days: 7));
+          }
+        } else {
+          _returnDate = picked;
+        }
       });
     }
   }
 
-  Future<void> _selectTime(BuildContext context) async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: _selectedTime,
-    );
-    if (picked != null && picked != _selectedTime) {
-      setState(() {
-        _selectedTime = picked;
-      });
-    }
-  }
-
-  void _submitReservation(ServiceItem service) {
+  void _submitReservation(Book book) {
     if (_formKey.currentState!.validate()) {
       final newReservation = Reservation(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        serviceId: service.id,
-        serviceName: service.title,
-        date: _selectedDate,
-        time: _selectedTime,
+        bookId: book.id,
+        bookTitle: book.title,
+        bookAuthor: book.author,
+        pickupDate: _pickupDate,
+        returnDate: _returnDate,
         userName: _nameController.text,
-        guests: _guests,
       );
 
       ReservationManager.addReservation(newReservation);
@@ -65,14 +64,14 @@ class _BookingScreenState extends State<BookingScreen> {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Succès!'),
-          content: const Text('Votre réservation a été confirmée.'),
+          title: const Text('Réservation Confirmée'),
+          content: Text('Vous avez réservé "${book.title}".\nÀ récupérer le ${_formatDate(_pickupDate)}.'),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop(); // Close dialog
                 Navigator.of(context).pop(); // Close booking screen
-                Navigator.of(context).pop(); // Close details screen (optional, return to home)
+                Navigator.of(context).pop(); // Close details screen
               },
               child: const Text('OK'),
             ),
@@ -82,13 +81,17 @@ class _BookingScreenState extends State<BookingScreen> {
     }
   }
 
+  String _formatDate(DateTime date) {
+    return "${date.day}/${date.month}/${date.year}";
+  }
+
   @override
   Widget build(BuildContext context) {
-    final service = ModalRoute.of(context)!.settings.arguments as ServiceItem;
+    final book = ModalRoute.of(context)!.settings.arguments as Book;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Confirmer la Réservation'),
+        title: const Text('Emprunter'),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
@@ -97,17 +100,20 @@ class _BookingScreenState extends State<BookingScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Réservation pour : ${service.title}',
-                style: Theme.of(context).textTheme.titleLarge,
+              Card(
+                child: ListTile(
+                  leading: Image.network(book.imageUrl, width: 40, fit: BoxFit.cover),
+                  title: Text(book.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text(book.author),
+                ),
               ),
               const SizedBox(height: 24),
               
-              // Date Picker
-              const Text('Date', style: TextStyle(fontWeight: FontWeight.bold)),
+              // Pickup Date
+              const Text('Date de retrait', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               InkWell(
-                onTap: () => _selectDate(context),
+                onTap: () => _selectDate(context, true),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                   decoration: BoxDecoration(
@@ -118,7 +124,7 @@ class _BookingScreenState extends State<BookingScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        "${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}",
+                        _formatDate(_pickupDate),
                         style: const TextStyle(fontSize: 16),
                       ),
                       const Icon(Icons.calendar_today),
@@ -128,11 +134,11 @@ class _BookingScreenState extends State<BookingScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Time Picker
-              const Text('Heure', style: TextStyle(fontWeight: FontWeight.bold)),
+              // Return Date
+              const Text('Date de retour prévue', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               InkWell(
-                onTap: () => _selectTime(context),
+                onTap: () => _selectDate(context, false),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                   decoration: BoxDecoration(
@@ -143,10 +149,10 @@ class _BookingScreenState extends State<BookingScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        _selectedTime.format(context),
+                        _formatDate(_returnDate),
                         style: const TextStyle(fontSize: 16),
                       ),
-                      const Icon(Icons.access_time),
+                      const Icon(Icons.event_repeat),
                     ],
                   ),
                 ),
@@ -163,6 +169,7 @@ class _BookingScreenState extends State<BookingScreen> {
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
+                  prefixIcon: const Icon(Icons.person),
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -171,31 +178,6 @@ class _BookingScreenState extends State<BookingScreen> {
                   return null;
                 },
               ),
-              const SizedBox(height: 16),
-
-              // Guests Counter
-              const Text('Nombre de personnes', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  IconButton(
-                    onPressed: () {
-                      if (_guests > 1) setState(() => _guests--);
-                    },
-                    icon: const Icon(Icons.remove_circle_outline),
-                  ),
-                  Text(
-                    '$_guests',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  IconButton(
-                    onPressed: () {
-                      setState(() => _guests++);
-                    },
-                    icon: const Icon(Icons.add_circle_outline),
-                  ),
-                ],
-              ),
               const SizedBox(height: 32),
 
               // Submit Button
@@ -203,7 +185,7 @@ class _BookingScreenState extends State<BookingScreen> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: () => _submitReservation(service),
+                  onPressed: () => _submitReservation(book),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Theme.of(context).primaryColor,
                     foregroundColor: Colors.white,
@@ -212,7 +194,7 @@ class _BookingScreenState extends State<BookingScreen> {
                     ),
                   ),
                   child: const Text(
-                    'Confirmer',
+                    'Confirmer la réservation',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ),

@@ -2,21 +2,21 @@ import 'package:flutter/material.dart';
 
 class Reservation {
   final String id;
-  final String serviceId;
-  final String serviceName;
-  final DateTime date;
-  final TimeOfDay time;
+  final String bookId;
+  final String bookTitle;
+  final String bookAuthor;
+  final DateTime pickupDate;
+  final DateTime returnDate;
   final String userName;
-  final int guests;
 
   Reservation({
     required this.id,
-    required this.serviceId,
-    required this.serviceName,
-    required this.date,
-    required this.time,
+    required this.bookId,
+    required this.bookTitle,
+    required this.bookAuthor,
+    required this.pickupDate,
+    required this.returnDate,
     required this.userName,
-    required this.guests,
   });
 }
 
